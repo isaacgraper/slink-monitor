@@ -14,18 +14,16 @@ namespace WindowsService
 {
     public partial class SLinkMonitor : ServiceBase
     {
-        private const string STARLINK_SSID = "Starlink";
+        private const string STARLINK_SSID = "Pirarara";
         private const int TIMER_INTERVAL_MS = 60000; // 1 minute
 
         private System.Timers.Timer _monitorTimer;
         private Stopwatch _connectionStopwatch;
         private bool _wasConnectedLastCheck = false;
 
-        private readonly ILogger<SLinkMonitor> _logger;
 
         public SLinkMonitor(ILogger<SLinkMonitor> logger)
         {
-            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _connectionStopwatch = new Stopwatch();
             InitializeComponent();
         }
@@ -34,7 +32,7 @@ namespace WindowsService
         {
             try
             {
-                _logger.LogInformation("Service initialized...");
+                WriteLog("Service initialized...");
 
                 // Initialize and start the timer
                 _monitorTimer = new System.Timers.Timer(TIMER_INTERVAL_MS)
@@ -46,35 +44,29 @@ namespace WindowsService
                 _monitorTimer.Elapsed += OnTimedEvent;
                 _monitorTimer.Start();
 
-                _logger.LogInformation("Monitor timer started with {Interval}ms interval", TIMER_INTERVAL_MS);
+                WriteLog($"Monitor timer started with {TIMER_INTERVAL_MS}ms interval");
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error starting service");
+                WriteLog($"{ex} Error starting service");
                 throw;
             }
         }
 
         protected override void OnStop() 
         {
-            try
-            {
-                _logger.LogInformation("Stopping Starlink Monitor Service...");
 
-                _monitorTimer?.Stop();
+            WriteLog("Stopping Starlink Monitor Service...");
+
+            _monitorTimer?.Stop();
+
+            if (_connectionStopwatch?.IsRunning == true)
+            {
                 _connectionStopwatch?.Stop();
-
-                if (_connectionStopwatch?.IsRunning == true)
-                {
-                    _logger.LogInformation("Final connection duration: {Duration}", _connectionStopwatch.Elapsed);
-                }
-
-                _logger.LogInformation("Service stopped successfully");
+                WriteLog($"Final connection duration: {_connectionStopwatch.Elapsed}");
             }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error stopping service");
-            }
+
+            WriteLog("Service stopped successfully");
         }
 
         private void TryReconnect(string ssid)
@@ -90,12 +82,12 @@ namespace WindowsService
                 using (var process = Process.Start(psi))
                 {
                     process?.WaitForExit(5000);
-                    _logger.LogInformation("Reconnection attempt to {SSID}", STARLINK_SSID);
+                    WriteLog($"Reconnection attempt to {STARLINK_SSID}");
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Reconnection failed");
+                WriteLog($"{ex} Reconnection failed");
             }
         }
 
@@ -108,17 +100,27 @@ namespace WindowsService
             {
                 _connectionStopwatch.Restart(); // Reset the stopwatch
                 _wasConnectedLastCheck = true; // Update the connection status
-                _logger.LogInformation("Starlink connection estabilished.");
+                WriteLog("Starlink connection estabilished.");
             }
           
             else if (!isCurrentlyConnected && _wasConnectedLastCheck)
             {
                 _connectionStopwatch.Stop(); // Stop the stopwatch
                 _wasConnectedLastCheck = false; // Update the connection status
-                _logger.LogWarning("Starlink connection lost. Lasted for {Duration}", _connectionStopwatch.Elapsed);
+                WriteLog($"Starlink connection lost. Lasted for {_connectionStopwatch.Elapsed}");
 
                 TryReconnect(STARLINK_SSID);
             }
         }
-    }
+
+        private void WriteLog(string message)
+        {
+            string source = "Starlink Monitor Service";
+            string log = "Application";
+            if (!EventLog.SourceExists(source))
+            {
+                EventLog.CreateEventSource(source, log);
+            }
+            EventLog.WriteEntry(source, $"{DateTime.Now:yyyy-MM-dd HH:mm:ss} {message}");
+        }
 }
