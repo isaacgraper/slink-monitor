@@ -22,7 +22,7 @@ namespace WindowsService
         private bool _wasConnectedLastCheck = false;
 
 
-        public SLinkMonitor(ILogger<SLinkMonitor> logger)
+        public SLinkMonitor()
         {
             _connectionStopwatch = new Stopwatch();
             InitializeComponent();
